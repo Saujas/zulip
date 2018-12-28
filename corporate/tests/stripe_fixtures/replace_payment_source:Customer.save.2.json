@@ -12,6 +12,8 @@
     "Content-Length": "235",
     "Content-Type": "application/json",
     "Date": "NORMALIZED DATETIME",
+    "Idempotency-Key": "a94a727a-6418-486c-b4c6-b97bb24fd5cc",
+    "Original-Request": "req_NORMALIZED0001",
     "Request-Id": "req_NORMALIZED0001",
     "Server": "nginx",
     "Strict-Transport-Security": "max-age=31556926; includeSubDomains; preload",

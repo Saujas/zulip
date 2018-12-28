@@ -77,30 +77,44 @@ $(function () {
         return (cents / 100).toFixed(precision);
     }
 
+    function get_form_input(form_name, input_name, stringify = true) {
+        var input = $("#" + form_name + "-form input[name='" + input_name + "']");
+        var val;
+        if (input.attr('type') === "radio") {
+            val =  $("#" + form_name + "-form input[name='" + input_name + "']:checked").val();
+        } else {
+            val = input.val();
+        }
+        if (stringify) {
+            return JSON.stringify(val);
+        }
+        return val;
+    }
+
     if (window.location.pathname === '/upgrade/') {
         var add_card_handler = StripeCheckout.configure({ // eslint-disable-line no-undef
             key: $("#autopay-form").data("key"),
             image: '/static/images/logo/zulip-icon-128x128.png',
             locale: 'auto',
             token: function (stripe_token) {
-                function get_form_input(name) {
-                    return JSON.stringify($("#autopay-form input[name='" + name + "']").val());
-                }
-
                 loading.make_indicator($('#autopay_loading_indicator'),
                                        {text: 'Processing ...', abs_positioned: true});
                 $("#autopay-input-section").hide();
                 $('#autopay-error').hide();
                 $("#autopay-loading").show();
+
+                var license_management = get_form_input("autopay", "license_management", false);
                 $.post({
                     url: "/json/billing/upgrade",
                     data: {
                         stripe_token: JSON.stringify(stripe_token.id),
                         csrfmiddlewaretoken: $("#autopay-form input[name='csrf']").val(),
-                        signed_seat_count: get_form_input("signed_seat_count"),
-                        salt: get_form_input("salt"),
-                        plan: get_form_input("plan"),
-                        billing_modality: get_form_input("billing_modality"),
+                        signed_seat_count: get_form_input("autopay", "signed_seat_count"),
+                        salt: get_form_input("autopay", "salt"),
+                        schedule: get_form_input("autopay", "schedule"),
+                        license_management: JSON.stringify(license_management),
+                        licenses: $("#" + license_management + "_license_count").val(),
+                        billing_modality: get_form_input("autopay", "billing_modality"),
                     },
                     success: function () {
                         $("#autopay-loading").hide();
@@ -118,6 +132,10 @@ $(function () {
         });
 
         $('#add-card-button').on('click', function (e) {
+            var license_management = get_form_input("autopay", "license_management", false);
+            if ($("#" + license_management + "_license_count")[0].checkValidity() === false) {
+                return;
+            }
             add_card_handler.open({
                 name: 'Zulip',
                 zipCode: true,
@@ -132,18 +150,10 @@ $(function () {
         });
 
         $("#invoice-button").on("click", function (e) {
-            if ($("#invoiced_seat_count")[0].checkValidity() === false) {
+            if ($("#invoiced_licenses")[0].checkValidity() === false) {
                 return;
             }
             e.preventDefault();
-
-            function get_form_input(name, stringify = true) {
-                var value = $("#invoice-form input[name='" + name + "']").val();
-                if (stringify) {
-                    value = JSON.stringify(value);
-                }
-                return value;
-            }
             loading.make_indicator($('#invoice_loading_indicator'),
                                    {text: 'Processing ...', abs_positioned: true});
             $("#invoice-input-section").hide();
@@ -152,12 +162,12 @@ $(function () {
             $.post({
                 url: "/json/billing/upgrade",
                 data: {
-                    csrfmiddlewaretoken: get_form_input("csrfmiddlewaretoken", false),
-                    signed_seat_count: get_form_input("signed_seat_count"),
-                    salt: get_form_input("salt"),
-                    plan: get_form_input("plan"),
-                    billing_modality: get_form_input("billing_modality"),
-                    invoiced_seat_count: get_form_input("invoiced_seat_count", false),
+                    csrfmiddlewaretoken: get_form_input("invoice", "csrfmiddlewaretoken", false),
+                    signed_seat_count: get_form_input("invoice", "signed_seat_count"),
+                    salt: get_form_input("invoice", "salt"),
+                    schedule: get_form_input("invoice", "schedule"),
+                    billing_modality: get_form_input("invoice", "billing_modality"),
+                    licenses: get_form_input("invoice", "invoiced_licenses", false),
                 },
                 success: function () {
                     $("#invoice-loading").hide();
@@ -174,26 +184,39 @@ $(function () {
         });
 
         var prices = {};
-        prices[page_params.nickname_annual] =
-            page_params.annual_price * (1 - page_params.percent_off / 100);
-        prices[page_params.nickname_monthly] =
-            page_params.monthly_price * (1 - page_params.percent_off / 100);
+        prices.annual = page_params.annual_price * (1 - page_params.percent_off / 100);
+        prices.monthly = page_params.monthly_price * (1 - page_params.percent_off / 100);
 
-        function update_charged_amount(plan_nickname) {
+        function update_charged_amount(schedule) {
             $("#charged_amount").text(
-                format_money(page_params.seat_count * prices[plan_nickname])
+                format_money(page_params.seat_count * prices[schedule])
             );
         }
 
-        $('input[type=radio][name=plan]').change(function () {
+        function show_license_section(license) {
+            $("#license-automatic-section").hide();
+            $("#license-manual-section").hide();
+            $("#license-mix-section").hide();
+
+            var section_id = "#license-" + license + "-section";
+            $(section_id).show();
+        }
+
+        $('input[type=radio][name=license_management]').change(function () {
+            show_license_section($(this).val());
+        });
+
+        $('input[type=radio][name=schedule]').change(function () {
             update_charged_amount($(this).val());
         });
 
-        $("#autopay_annual_price").text(format_money(prices[page_params.nickname_annual]));
-        $("#autopay_annual_price_per_month").text(format_money(prices[page_params.nickname_annual] / 12));
-        $("#autopay_monthly_price").text(format_money(prices[page_params.nickname_monthly]));
-        $("#invoice_annual_price").text(format_money(prices[page_params.nickname_annual]));
-        $("#invoice_annual_price_per_month").text(format_money(prices[page_params.nickname_annual] / 12));
-        update_charged_amount($('input[type=radio][name=plan]:checked').val());
+        $("#autopay_annual_price").text(format_money(prices.annual));
+        $("#autopay_annual_price_per_month").text(format_money(prices.annual / 12));
+        $("#autopay_monthly_price").text(format_money(prices.monthly));
+        $("#invoice_annual_price").text(format_money(prices.annual));
+        $("#invoice_annual_price_per_month").text(format_money(prices.annual / 12));
+
+        show_license_section($('input[type=radio][name=license_management]:checked').val());
+        update_charged_amount($('input[type=radio][name=schedule]:checked').val());
     }
 });

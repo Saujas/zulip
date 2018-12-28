@@ -319,6 +319,7 @@ class Realm(models.Model):
         BOT_CREATION_ADMINS_ONLY,
     ]
 
+    # Both of these fields are legacy, and will be removed after a manual migration.
     has_seat_based_plan = models.BooleanField(default=False)  # type: bool
     seat_limit = models.PositiveIntegerField(null=True)  # type: Optional[int]
 
@@ -2292,6 +2293,9 @@ class RealmAuditLog(models.Model):
     STRIPE_CARD_CHANGED = 'stripe_card_changed'
     STRIPE_PLAN_CHANGED = 'stripe_plan_changed'
     STRIPE_PLAN_QUANTITY_RESET = 'stripe_plan_quantity_reset'
+
+    CUSTOMER_CREATED = 'customer_created'
+    CUSTOMER_PLAN_CREATED = 'customer_plan_created'
 
     USER_CREATED = 'user_created'
     USER_ACTIVATED = 'user_activated'
